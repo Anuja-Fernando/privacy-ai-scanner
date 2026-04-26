@@ -146,7 +146,7 @@ function displayResults(data, output) {
         ${meta.dp_result?.action === "BLOCK" ? `
         <div style="margin-top:6px;font-size:11px;color:#666;">
           DP reconstruction risk: ${((meta.dp_result.dp_reconstruction_risk || 0) * 100).toFixed(1)}%
-          &nbsp;|&nbsp; ε budget used: ${meta.dp_result.budget?.percent_used || 0}%
+          &nbsp;|&nbsp; ε budget remaining: ${100 - (meta.dp_result.budget?.percent_used || 0)}%
         </div>` : ""}
       </div>`;
     return;
@@ -334,18 +334,6 @@ function displayResults(data, output) {
             ${dpIcon} Active &nbsp;|&nbsp; Action: <strong>${dpAction}</strong>
           </div>
           <div style="font-size:11px;color:#555;margin-top:2px;">
-            Reconstruction risk: <strong>${(dpRisk * 100).toFixed(1)}%</strong>
-            &nbsp;|&nbsp;
-            After noise: <strong>${(dpNoised * 100).toFixed(1)}%</strong>
-          </div>
-          <div style="font-size:11px;color:#666;margin-top:2px;">
-            ε budget used: ${dpBudget.percent_used || 0}%
-            (${dpBudget.eps_remaining ?? 10} / ${dpBudget.max_eps ?? 10})
-          </div>
-          ${dpEchoed.length > 0 ? `
-            <div style="font-size:11px;color:#d32f2f;margin-top:2px;">
-              ⚠️ LLM echoed PII: ${dpEchoed.join(", ")}
-            </div>` : ""}
         ` : `
           <div style="margin-top:4px;font-size:12px;color:#555;">
             ⏳ DP analysis not available for this request
