@@ -1,0 +1,30 @@
+{
+  "medical": [
+    "symptoms", "diagnosis", "prescription", "hospital", "doctor",
+    "medication", "treatment", "patient", "blood pressure", "surgery",
+    "mental health", "therapy", "anxiety", "depression", "diabetes"
+  ],
+  "financial": [
+    "bank account", "credit card", "salary", "income", "tax",
+    "loan", "debt", "investment", "insurance", "social security",
+    "net worth", "account number", "routing number", "pin", "payment"
+  ],
+  "identity": [
+    "passport", "aadhaar", "date of birth", "home address", "full name",
+    "phone number", "email address", "national id", "driving license",
+    "biometric", "fingerprint", "face recognition", "iris scan",
+    "email", "gmail", "yahoo", "hotmail", "outlook", "@",
+    "my email is", "my email", "email me at", "contact me at", "reach me at",
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com",
+    "user_", "admin_", "test_", "dummy_", "sample_", "example_",
+    "1234", "5678", "9876", "5432", "contact", "address", "personal"
+  ],
+  "legal": [
+    "lawsuit", "attorney", "arrest", "conviction", "court",
+    "criminal record", "probation", "subpoena", "warrant", "felony"
+  ],
+  "personal_relationships": [
+    "spouse", "divorce", "custody", "affair", "domestic violence",
+    "children", "family member", "partner", "relationship status"
+  ]
+}

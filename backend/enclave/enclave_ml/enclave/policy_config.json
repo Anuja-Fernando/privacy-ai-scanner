@@ -1,0 +1,56 @@
+{
+  "compliance_frameworks": ["GDPR", "DPDP"],
+  "data_retention_days": {
+    "public": 365,
+    "internal": 180,
+    "confidential": 90,
+    "strictly_confidential": 30
+  },
+  "privacy_budgets": {
+    "public": {
+      "daily_requests": 1000,
+      "monthly_requests": 30000
+    },
+    "internal": {
+      "daily_requests": 500,
+      "monthly_requests": 15000
+    },
+    "confidential": {
+      "daily_requests": 100,
+      "monthly_requests": 3000
+    },
+    "strictly_confidential": {
+      "daily_requests": 10,
+      "monthly_requests": 300
+    }
+  },
+  "tool_whitelist": {
+    "public": ["low_risk", "medium_risk"],
+    "internal": ["low_risk", "medium_risk"],
+    "confidential": ["low_risk"],
+    "strictly_confidential": []
+  },
+  "cross_border_restrictions": {
+    "confidential": false,
+    "strictly_confidential": true
+  },
+  "audit_requirements": {
+    "confidential": true,
+    "strictly_confidential": true
+  },
+  "data_subject_rights": {
+    "right_to_access": true,
+    "right_to_rectification": true,
+    "right_to_erasure": true,
+    "right_to_portability": true,
+    "right_to_object": true
+  },
+  "automated_decision_making": {
+    "confidential": false,
+    "strictly_confidential": false
+  },
+  "profiling_restrictions": {
+    "confidential": true,
+    "strictly_confidential": true
+  }
+}

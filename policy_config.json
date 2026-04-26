@@ -1,0 +1,44 @@
+{
+  "compliance_frameworks": [
+    "GDPR",
+    "DPDP"
+  ],
+  "data_retention_days": {
+    "public": 365,
+    "internal": 180,
+    "confidential": 90,
+    "strictly_confidential": 30
+  },
+  "privacy_budgets": {
+    "public": {
+      "daily_requests": 2000,
+      "monthly_requests": 60000
+    },
+    "internal": {
+      "daily_requests": 1000,
+      "monthly_requests": 30000
+    }
+  },
+  "tool_whitelist": {
+    "public": [
+      "low_risk",
+      "medium_risk"
+    ],
+    "internal": [
+      "low_risk",
+      "medium_risk"
+    ],
+    "confidential": [
+      "low_risk"
+    ],
+    "strictly_confidential": []
+  },
+  "cross_border_restrictions": {
+    "confidential": false,
+    "strictly_confidential": true
+  },
+  "audit_requirements": {
+    "confidential": true,
+    "strictly_confidential": true
+  }
+}

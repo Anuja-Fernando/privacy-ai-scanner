@@ -1,0 +1,9 @@
+{
+  "epsilon": 1.0,
+  "delta": 1e-05,
+  "max_session_epsilon": 10.0,
+  "reconstruction_threshold": 0.75,
+  "warn_threshold": 0.55,
+  "noise_sensitivity": 1.0,
+  "embedding_dim": 128
+}

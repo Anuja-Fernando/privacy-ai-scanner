@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>BERT Offscreen</title>
+</head>
+<body>
+    <script src="ner-bert.js"></script>
+    <script>
+        // Listen for BERT requests from main extension
+        chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+            if (msg.type === "RUN_BERT") {
+                console.log("[Offscreen] Running BERT inference on:", msg.text.substring(0, 100) + "...");
+                runBERTInference(msg.text).then(result => {
+                    console.log("[Offscreen] BERT result:", result);
+                    sendResponse(result);
+                }).catch(error => {
+                    console.error("[Offscreen] BERT error:", error);
+                    sendResponse({ success: false, error: error.message, entities: [] });
+                });
+                return true; // Keep message channel open for async response
+            }
+        });
+        
+        // Initialize BERT on load
+        console.log("[Offscreen] BERT offscreen document loaded");
+    </script>
+</body>
+</html>

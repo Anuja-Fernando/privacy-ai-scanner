@@ -1,0 +1,13 @@
+To load the extention
+->use the dist folder in manage extention
+
+Backend command
+->cd Backend
+->PS C:\Users\anuja\OneDrive\Desktop\example\backend> C:\Users\anuja\OneDrive\Desktop\example\backend\enclave\enclave_ml\enclave_env\Scripts\python.exe -m uvicorn main:app --reload --port 8000
+PS C:\Users\anuja\OneDrive\Desktop\example> git lfs install
+>> git lfs track "*.safetensors"
+>> git add .gitattributes
+Updated Git hooks.
+Git LFS initialized.
+Tracking "*.safetensors"
+PS C:\Users\anuja\OneDrive\Desktop\example>
