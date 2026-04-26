@@ -276,13 +276,12 @@ class EnclaveController:
                     self.processing_stats["blocked_low_trust"] += 1
                 return self._blocked_response(gate_result, trust_result, risk_result)
 
+            # Store RAW text embedding so DP can compare LLM response vs original PII
+            if self.dp_filter and session_id:
+                self.dp_filter.store_prompt_embedding(session_id, text)  # ← raw, not anonymized
+
             # ── Phase 4: Privacy Processing ──────────────────
             anonymized_text = self._phase4_privacy_processing(text)
-
-            # Store anonymized prompt embedding for DP similarity baseline
-            # FIX: Store AFTER anonymization so DP compares response vs anonymized prompt
-            if self.dp_filter and session_id:
-                self.dp_filter.store_prompt_embedding(session_id, anonymized_text)
 
             # ── Phase 4b: DP Output Filter ───────────────────
             # FIX 1 — BLOCK from DP now returns early and stops the pipeline

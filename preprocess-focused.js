@@ -525,9 +525,9 @@ function generalizeDates(text) {
 }
 
 function generalizeMoney(text) {
-  // FIX: \$[\d]{1,3}(?:,\d{3})* now greedily consumes comma-separated digits like $85,000
-  return text.replace(/\$[\d]{1,3}(?:,\d{3})*(?:\.\d{2})?\b/g, match => {
-    const amount = parseFloat(match.replace(/[^0-9.]/g, ''));
+  // Matches $85,000 or $85000 or $1,234,567.89
+  return text.replace(/\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?/g, match => {
+    const amount = parseFloat(match.replace(/[$,]/g, ''));
     if (amount < 50_000)  return "SALARY_0_50K";
     if (amount < 100_000) return "SALARY_50K_100K";
     if (amount < 150_000) return "SALARY_100K_150K";

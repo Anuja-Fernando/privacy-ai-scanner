@@ -121,12 +121,27 @@ class RDPBudgetTracker:
 
 # Embedding helper
 def _embed(text: str, dim: int = 128) -> np.ndarray:
-    """Deterministic BOW embedding. Same as PSIEngine._embed."""
-    words  = re.sub(r"[^a-z0-9 ]", " ", text.lower()).split()
-    vec    = np.zeros(dim, dtype=np.float64)
+    """
+    Character bigram embedding — more sensitive to value changes than BOW.
+    '$85,000' and 'SALARY_0_50K' will now produce different vectors
+    because their character sequences differ, even if sentence structure matches.
+    """
+    text_clean = re.sub(r"[^a-z0-9 $@._-]", " ", text.lower())
+    vec = np.zeros(dim, dtype=np.float64)
+
+    # Word unigrams (sentence structure signal)
+    words = text_clean.split()
     for w in words:
         bucket = int(hashlib.md5(w.encode()).hexdigest(), 16) % dim
-        vec[bucket] += 1.0
+        vec[bucket] += 0.5  # lower weight than bigrams
+
+    # Character bigrams (value content signal)
+    for i in range(len(text_clean) - 1):
+        bigram = text_clean[i:i+2]
+        if bigram.strip():  # skip pure whitespace bigrams
+            bucket = int(hashlib.md5(bigram.encode()).hexdigest(), 16) % dim
+            vec[bucket] += 1.0
+
     norm = np.linalg.norm(vec)
     if norm > 0:
         vec /= norm
