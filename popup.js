@@ -69,9 +69,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const { access_token: authToken } = await authResponse.json();
 
       // ── STEP A: Store original prompt embedding for DP ─────
-      // This stores the PRE-anonymization embedding so that when
-      // response_interceptor.js calls /analyze/response later,
-      // it can compare the LLM response against this original.
       const sessionId = crypto.randomUUID();
 
       try {
@@ -83,11 +80,10 @@ document.addEventListener("DOMContentLoaded", () => {
           },
           body: JSON.stringify({
             session_id:    sessionId,
-            original_text: rawText,   // ORIGINAL — before anonymization
+            original_text: rawText,
           }),
         });
         if (storeRes.ok) {
-          // Save session_id so response_interceptor.js can read it
           await chrome.storage.session.set({ privacySessionId: sessionId });
           console.log("✅ Prompt embedding stored, session:", sessionId);
         }
@@ -107,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           text:       cleanedText,
           operation:  "ml_inference",
-          session_id: sessionId,      // passed so enclave logs it
+          session_id: sessionId,
         })
       });
 
@@ -117,21 +113,12 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("Enclave response:", JSON.stringify(data, null, 2));
 
       // ── STEP C: Display results ────────────────────────────
+      // FIX: displayResults() is the ONLY place that renders HE and DP.
+      // updateHEPanel() and updateDPPanel() are removed — they were
+      // causing duplicate blocks by appending into #he-live-result
+      // and #dp-live-result after displayResults() already rendered them.
       displayResults(data, output);
       status.innerText = data.status === "blocked" ? "Blocked 🚫" : "Done ✅";
-
-      // ── STEP D: Update live panels AFTER DOM is rendered ──
-      // Use setTimeout(0) to wait for innerHTML to finish painting
-      setTimeout(() => {
-        const dp = data.metadata?.dp;
-        const he = data.metadata?.he;
-
-        console.log(" DP data:", dp);
-        console.log(" HE data:", he);
-
-        if (dp) updateDPPanel(dp);
-        if (he) updateHEPanel(he);
-      }, 0);
 
     } catch (error) {
       console.error(error);
@@ -143,8 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ══════════════════════════════════════════════════════════
-// DISPLAY RESULTS
-// Reads from data.metadata.he and data.metadata.dp
+// DISPLAY RESULTS — single source of truth for all rendering
 // ══════════════════════════════════════════════════════════
 function displayResults(data, output) {
   const riskIcons     = { safe: "✅", sensitive: "⚠️", malicious: "🚨" };
@@ -153,56 +139,58 @@ function displayResults(data, output) {
 
   if (data.status === "blocked") {
     const meta = data.metadata || {};
-    const gate = meta.gate_decision || {};
     output.innerHTML = `
       <div style="background:#ffe0e0;border:1px solid #ff4444;border-radius:8px;padding:12px;margin-top:8px;">
         <div style="font-weight:bold;color:#cc0000;font-size:14px;">🚫 REQUEST BLOCKED</div>
-        <div style="margin-top:6px;font-size:12px;color:#333;">${data.error || gate.reason || "Blocked by policy"}</div>
+        <div style="margin-top:6px;font-size:12px;color:#333;">${data.error || "Blocked by policy"}</div>
+        ${meta.dp_result?.action === "BLOCK" ? `
+        <div style="margin-top:6px;font-size:11px;color:#666;">
+          DP reconstruction risk: ${((meta.dp_result.dp_reconstruction_risk || 0) * 100).toFixed(1)}%
+          &nbsp;|&nbsp; ε budget used: ${meta.dp_result.budget?.percent_used || 0}%
+        </div>` : ""}
       </div>`;
     return;
   }
 
-  // ── Extract from correct nested location ─────────────────
-  const metadata     = data.metadata    || {};
-  const risk         = metadata.risk_result  || {};
-  const scope        = metadata.scope_result || {};
-  const trust        = metadata.trust_score  || {};
-  const gate         = metadata.gate_decision || {};
-  const policy       = metadata.policy_result || {};
-  const advancedML   = metadata.advanced_ml  || {};
-  const piiDetected  = metadata.pii_detected || [];
+  const metadata    = data.metadata    || {};
+  const risk        = metadata.risk_result  || {};
+  const scope       = metadata.scope_result || {};
+  const trust       = metadata.trust_score  || {};
+  const gate        = metadata.gate_decision || {};
+  const policy      = metadata.policy_result || {};
+  const advancedML  = metadata.advanced_ml  || {};
+  const piiDetected = metadata.pii_detected || [];
 
-  // ── HE result — from metadata.he ─────────────────────────
-  const he           = metadata.he || {};
-  const heActive     = he.active         || false;
-  const heTopics     = he.flagged_topics || [];
-  const heMaxRisk    = he.max_risk       || 0;
-  const heCTSize     = he.ct_size_bytes  || 0;
+  // HE — from metadata.he (normalized in enclave_controller + main.py)
+  const he       = metadata.he || {};
+  const heActive = he.active         || false;
+  const heTopics = he.flagged_topics || [];
+  const heRisk   = he.max_risk       || 0;
+  const heCT     = he.ct_size_bytes  || 0;
 
-  // Debug: Log HE data
-  console.log("HE block:", JSON.stringify(metadata.he));
-  console.log("HE active value:", metadata.he?.active);
+  // DP — from metadata.dp (normalized in main.py)
+  const dp          = metadata.dp || {};
+  const dpActive    = dp.active    || false;
+  const dpAction    = dp.action    || "N/A";
+  // FIX: read both possible key names — backend uses dp_reconstruction_risk,
+  // main.py also exposes reconstruction_risk as an alias
+  const dpRisk      = dp.dp_reconstruction_risk ?? dp.reconstruction_risk ?? 0;
+  const dpNoised    = dp.noised_similarity ?? 0;
+  const dpBudget    = dp.budget            || {};
+  const dpEchoed    = dp.echoed_entities   || [];
 
-  // ── DP result ────────────────────────────────────────
-  const dp           = metadata.dp || {};
-  
-  // Debug: Log DP data
-  console.log("DP block:", JSON.stringify(metadata.dp));
-  console.log("DP active value:", metadata.dp?.active);
+  const privColor = privacyColors[metadata.privacy_level] || "#888";
 
-  // FIX: Normalize DP data to ensure it's always available
-  const normalizedDP = {
-    active: metadata.dp?.active || false,
-    action: metadata.dp?.action || "N/A",
-    reconstruction_risk: metadata.dp?.reconstruction_risk || 0,
-    noised_similarity: metadata.dp?.noised_similarity || 0,
-    budget: metadata.dp?.budget || {},
-    echoed_entities: metadata.dp?.echoed_entities || [],
-  };
-  
-  console.log("Normalized DP:", normalizedDP);
+  // DP action color
+  const dpColor = dpAction === "ALLOW" ? "#388e3c"
+                : dpAction === "WARN"  ? "#f57c00"
+                : "#d32f2f";
+  const dpIcon  = dpAction === "ALLOW" ? "✅"
+                : dpAction === "WARN"  ? "⚠️"
+                : "🚨";
 
-  const privColor    = privacyColors[metadata.privacy_level] || "#888";
+  // FIX: processed output — reads data.result which enclave sets in Phase 6
+  const processedOutput = data.result || "(no processed output)";
 
   output.innerHTML = `
     <div style="font-family:sans-serif;font-size:12px;margin-top:8px;">
@@ -219,7 +207,7 @@ function displayResults(data, output) {
         </div>
       </div>
 
-      <!-- PII detected (Phase 2 override) -->
+      <!-- PII Override (Phase 2) — only shown if triggered -->
       ${piiDetected.length > 0 ? `
       <div style="background:#fff3e0;border:1px solid #ff9800;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 2 — PII Override</div>
@@ -231,7 +219,7 @@ function displayResults(data, output) {
         </div>
       </div>` : ""}
 
-      <!-- Risk Classification -->
+      <!-- Risk Classification (Phase 2b) -->
       <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 2b — Risk Classification</div>
         <div style="margin-top:4px;">
@@ -249,7 +237,7 @@ function displayResults(data, output) {
           </div>` : ""}
       </div>
 
-      <!-- Scope -->
+      <!-- Scope Classification (Phase 5) -->
       <div style="background:#e3f2fd;border:1px solid #2196f3;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 5 — Scope Classification</div>
         <div style="margin-top:4px;">
@@ -263,7 +251,7 @@ function displayResults(data, output) {
         </div>
       </div>
 
-      <!-- Trust -->
+      <!-- Trust Score (Phase 1) -->
       <div style="background:#f3e5f5;border:1px solid #9c27b0;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 1 — Trust Score</div>
         <div style="margin-top:4px;">
@@ -277,7 +265,7 @@ function displayResults(data, output) {
         </div>
       </div>
 
-      <!-- Privacy Level -->
+      <!-- Privacy Level (Phase 6) -->
       <div style="background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 6 — Privacy Level</div>
         <div style="margin-top:4px;color:${privColor};font-weight:bold;">
@@ -285,7 +273,7 @@ function displayResults(data, output) {
         </div>
       </div>
 
-      <!-- Advanced ML -->
+      <!-- Advanced ML (Phase 2c) -->
       ${advancedML.anomaly || advancedML.phishing ? `
       <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 2c — Advanced ML</div>
@@ -299,7 +287,7 @@ function displayResults(data, output) {
         </div>
       </div>` : ""}
 
-      <!-- Policy Security -->
+      <!-- Policy Security (Phase 3a) -->
       ${policy.sensitivity_level ? `
       <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 3a — Policy Security (GDPR/DPDP)</div>
@@ -317,159 +305,99 @@ function displayResults(data, output) {
       </div>` : ""}
 
       <!-- HE Private Set Intersection (Phase 2d) -->
+      <!-- FIX: rendered ONCE here only — updateHEPanel() removed -->
       <div style="background:#fce4ec;border:1px solid #e91e63;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 2d — HE Private Set Intersection</div>
         <div style="margin-top:4px;font-size:12px;">
           ${heActive
-            ? `🔐 Active &nbsp;|&nbsp; Risk: <strong>${(heMaxRisk * 100).toFixed(1)}%</strong>
+            ? `🔐 Active &nbsp;|&nbsp; Risk: <strong>${(heRisk * 100).toFixed(1)}%</strong>
                &nbsp;|&nbsp; Topics: <strong>${heTopics.length > 0 ? heTopics.join(", ") : "none"}</strong>`
             : `⚠️ HE not active`}
         </div>
-        ${heCTSize > 0 ? `
+        ${heCT > 0 ? `
         <div style="font-size:11px;color:#666;margin-top:2px;">
-          Ciphertext: ${heCTSize.toLocaleString()} bytes — backend saw only encrypted data
+          Ciphertext: ${heCT.toLocaleString()} bytes — backend saw only encrypted data
         </div>` : ""}
-        ${heTopics.length > 0 ? `
-        <div style="font-size:11px;color:#c62828;margin-top:2px;">
-          ⚠️ Sensitive topics detected in anonymized text — further protection applied
-        </div>` : `
-        <div style="font-size:11px;color:#388e3c;margin-top:2px;">
-          ✅ No sensitive topics leaked through anonymization
-        </div>`}
-        <div id="he-live-result" style="margin-top:6px;"></div>
+        <div style="font-size:11px;margin-top:2px;color:${heTopics.length > 0 ? '#c62828' : '#388e3c'};">
+          ${heTopics.length > 0
+            ? "⚠️ Sensitive topics detected in anonymized text — further protection applied"
+            : "✅ No sensitive topics leaked through anonymization"}
+        </div>
       </div>
 
       <!-- DP Reconstruction Resistance (Phase 4b) -->
+      <!-- FIX: rendered ONCE here only — updateDPPanel() removed -->
       <div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:10px;margin-bottom:6px;">
         <div style="font-weight:bold;">Phase 4b — DP Reconstruction Resistance</div>
-        ${normalizedDP.active && normalizedDP.action !== 'N/A' ? `
-          <div style="margin-top:4px;font-size:12px;color:#388e3c;">
-            🔐 Active | Action: <strong>${normalizedDP.action}</strong>
+        ${dpActive ? `
+          <div style="margin-top:4px;font-size:12px;color:${dpColor};">
+            ${dpIcon} Active &nbsp;|&nbsp; Action: <strong>${dpAction}</strong>
           </div>
           <div style="font-size:11px;color:#555;margin-top:2px;">
-            Reconstruction risk: <strong>${((normalizedDP.reconstruction_risk || 0) * 100).toFixed(1)}%</strong>
+            Reconstruction risk: <strong>${(dpRisk * 100).toFixed(1)}%</strong>
             &nbsp;|&nbsp;
-            After noise: <strong>${((normalizedDP.noised_similarity || 0) * 100).toFixed(1)}%</strong>
+            After noise: <strong>${(dpNoised * 100).toFixed(1)}%</strong>
           </div>
           <div style="font-size:11px;color:#666;margin-top:2px;">
-            ε budget remaining: ${100 - (normalizedDP.budget?.percent_used || 0)}%
-            (${normalizedDP.budget?.eps_remaining || 10} / ${normalizedDP.budget?.max_eps || 10})
+            ε budget used: ${dpBudget.percent_used || 0}%
+            (${dpBudget.eps_remaining ?? 10} / ${dpBudget.max_eps ?? 10})
           </div>
-          ${normalizedDP.echoed_entities?.length > 0 ? `
+          ${dpEchoed.length > 0 ? `
             <div style="font-size:11px;color:#d32f2f;margin-top:2px;">
-              ⚠️ LLM echoed PII: ${normalizedDP.echoed_entities.join(", ")}
+              ⚠️ LLM echoed PII: ${dpEchoed.join(", ")}
             </div>` : ""}
         ` : `
           <div style="margin-top:4px;font-size:12px;color:#555;">
-            ${normalizedDP.active ? '🔐 DP Analysis Complete' : '⏳ Waiting for DP analysis...'}
-          </div>
-          <div style="font-size:11px;color:#666;margin-top:2px;">
-            ${normalizedDP.active ? 'DP analysis completed successfully.' : 'DP analysis runs automatically during privacy processing.'}
+            ⏳ DP analysis not available for this request
           </div>
         `}
-        <div id="dp-live-result" style="margin-top:6px;"></div>
       </div>
 
       <!-- Processed Output -->
       <div style="background:#f5f5f5;border:1px solid #ccc;border-radius:8px;padding:10px;">
-        <div style="font-weight:bold;">Processed Output</div>
+        <div style="font-weight:bold;margin-bottom:6px;">Processed Output</div>
+        <div style="font-size:11px;color:#333;word-break:break-all;white-space:pre-wrap;font-family:monospace;">
+          ${processedOutput}
+        </div>
+      </div>
+
     </div>
-  </div>
+  `;
+}
 
-</div>
-`;
-} // <--- Added missing closing brace here
-
-// Listen for DP result from response_interceptor.js
-// It sends a message when /analyze/response completes
+// ── Listen for DP result from response_interceptor.js ─────
+// Only used when the LLM response is analyzed AFTER submission
+// (separate flow from the main scan pipeline above)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === "DP_RESULT") {
-    updateDPPanel(msg.payload);
+    // Find the DP panel and append the intercepted result below it
+    const panel = document.querySelector("#dp-interceptor-result");
+    if (panel) updateDPInterceptPanel(msg.payload);
   }
 });
 
-// ← FIX: Check if DP already ran while popup was closed
-chrome.storage.local.get('lastDPResult', (data) => {
-  if (data.lastDPResult) {
-    updateDPPanel(data.lastDPResult);
-    chrome.storage.local.remove('lastDPResult'); // clear after showing
+// Check if a DP result arrived while popup was closed
+chrome.storage.local.get("lastDPResult", (stored) => {
+  if (stored.lastDPResult) {
+    chrome.storage.local.remove("lastDPResult");
   }
 });
 
-// ── Update DP panel when response_interceptor.js sends result ─
-function updateDPPanel(dp) {
-  const panel = document.getElementById("dp-live-result");
-  if (!panel) return;
+// Only used for response_interceptor.js LLM response analysis (separate flow)
+function updateDPInterceptPanel(dp) {
+  const panel = document.getElementById("dp-interceptor-result");
+  if (!panel || !dp?.active) return;
 
-  if (!dp?.active) {
-    panel.innerHTML = `⚠️ DP filter not active`;
-    return;
-  }
-
-  const icon = dp.action === "ALLOW" ? "✅" : "�";
-  const risk = ((dp.reconstruction_risk || 0) * 100).toFixed(1);
-  const noised = ((dp.noised_similarity || 0) * 100).toFixed(1);
+  const icon   = dp.action === "ALLOW" ? "✅" : dp.action === "WARN" ? "⚠️" : "🚨";
+  const color  = dp.action === "ALLOW" ? "#388e3c" : dp.action === "WARN" ? "#f57c00" : "#d32f2f";
+  const risk   = ((dp.reconstruction_risk || 0) * 100).toFixed(1);
   const budget = dp.budget || {};
 
   panel.innerHTML = `
-    <div style="border-top:1px solid #c8e6c9;padding-top:6px;margin-top:4px;">
-      <div style="color:${dp.action === "ALLOW" ? "#388e3c" : dp.action === "WARN" ? "#f57c00" : "#d32f2f"};font-weight:bold;font-size:12px;">
-        ${icon} <strong>${dp.action}</strong>
-        &nbsp;|&nbsp; Similarity: ${risk}%
-        &nbsp;|&nbsp; Noised: ${noised}%
-        &nbsp;|&nbsp; Budget: ${budget.eps_remaining || 10}/${budget.max_eps || 10} 
-          (${100 - (budget.percent_used || 0)}% remaining)
-      </div>
+    <div style="border-top:1px solid #c8e6c9;padding-top:6px;margin-top:4px;font-size:11px;color:${color};">
+      ${icon} LLM Response Analysis: <strong>${dp.action}</strong>
+      &nbsp;|&nbsp; Similarity: ${risk}%
+      &nbsp;|&nbsp; Budget: ${budget.eps_remaining ?? 10}/${budget.max_eps ?? 10}
     </div>
   `;
-}
-
-// ── Update HE panel for immediate display ─
-function updateHEPanel(he) {
-  const hePanel = document.getElementById("he-live-result");
-  if (!hePanel || !he?.active) return;
-
-  const topics = he.flagged_topics?.join(", ") || "none";
-  const risk = ((he.max_risk || 0) * 100).toFixed(1);
-
-  hePanel.innerHTML = `
-    <div style="border-top:1px solid #fce4ec;padding-top:6px;margin-top:4px;">
-      <div style="color:#388e3c;font-weight:bold;font-size:12px;">
-        🔐 Active &nbsp;|&nbsp; Risk: <strong>${risk}%</strong>
-        &nbsp;|&nbsp; Topics: <strong>${topics}</strong>
-        &nbsp;|&nbsp; Ciphertext: ${he.ct_size_bytes?.toLocaleString()} bytes
-      </div>
-    </div>
-  `;
-}
-
-// ── Fix: Add DP display handler for backend response ─
-function updateDPDisplay(response) {
-  const dp = response.dp_result || response.dp; // Handle both key names
-  
-  if (!dp || !dp.active) {
-    console.log("⚠️ DP not active in response");
-    return;
-  }
-
-  // Handle BOTH key names from backend inconsistency
-  const risk = dp.dp_reconstruction_risk ?? dp.reconstruction_risk ?? 0;
-  const action = dp.action || "N/A";
-  const budget = dp.budget || {};
-
-  console.log("🔍 DP Display Update:", { active: dp.active, action, risk, budget });
-
-  const dpPanel = document.getElementById("dp-live-result");
-  if (dpPanel) {
-    dpPanel.innerHTML = `
-      <div style="border-top:1px solid #c8e6c9;padding-top:6px;margin-top:4px;">
-        <div style="color:${action === "ALLOW" ? "#388e3c" : action === "WARN" ? "#f57c00" : "#d32f2f"};font-weight:bold;font-size:12px;">
-          ${action === "ALLOW" ? "✅" : action === "WARN" ? "⚠️" : "🚨"} ${action}
-          | Similarity: ${(risk * 100).toFixed(1)}%
-          | Budget: ${budget.eps_remaining || 10}/${budget.max_eps || 10} 
-            (${100 - (budget.percent_used || 0)}% remaining)
-        </div>
-      </div>
-    `;
-  }
 }
