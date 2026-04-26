@@ -179,6 +179,9 @@ function displayResults(data, output) {
   const dpBudget    = dp.budget            || {};
   const dpEchoed    = dp.echoed_entities   || [];
 
+  // DEBUG: Log DP state to diagnose why panel might be missing
+  console.log("DP active:", dp.active, "action:", dp.action, "risk:", dp.reconstruction_risk);
+
   const privColor = privacyColors[metadata.privacy_level] || "#888";
 
   // DP action color

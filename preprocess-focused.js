@@ -526,11 +526,14 @@ function generalizeDates(text) {
 
 function generalizeMoney(text) {
   // Matches $85,000 or $85000 or $1,234,567.89
-  return text.replace(/\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?/g, match => {
+  const result = text.replace(/\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?/g, match => {
     const amount = parseFloat(match.replace(/[$,]/g, ''));
     if (amount < 50_000)  return "SALARY_0_50K";
     if (amount < 100_000) return "SALARY_50K_100K";
     if (amount < 150_000) return "SALARY_100K_150K";
     return "SALARY_150K_PLUS";
   });
+  // DEBUG: Log what generalizeMoney is doing
+  console.log("📏 generalizeMoney:", {input: text, output: result});
+  return result;
 }
