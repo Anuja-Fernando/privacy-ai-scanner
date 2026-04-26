@@ -352,8 +352,8 @@ function displayResults(data, output) {
             After noise: <strong>${((normalizedDP.noised_similarity || 0) * 100).toFixed(1)}%</strong>
           </div>
           <div style="font-size:11px;color:#666;margin-top:2px;">
-            ε budget used: ${normalizedDP.budget?.percent_used || 0}%
-            (${normalizedDP.budget?.eps_spent || 0} / ${normalizedDP.budget?.max_eps || 10})
+            ε budget remaining: ${100 - (normalizedDP.budget?.percent_used || 0)}%
+            (${normalizedDP.budget?.eps_remaining || 10} / ${normalizedDP.budget?.max_eps || 10})
           </div>
           ${normalizedDP.echoed_entities?.length > 0 ? `
             <div style="font-size:11px;color:#d32f2f;margin-top:2px;">
@@ -373,13 +373,12 @@ function displayResults(data, output) {
       <!-- Processed Output -->
       <div style="background:#f5f5f5;border:1px solid #ccc;border-radius:8px;padding:10px;">
         <div style="font-weight:bold;">Processed Output</div>
-        <div style="margin-top:4px;word-break:break-word;color:#333;font-size:11px;">
-          ${data.result || "No output"}
-        </div>
-      </div>
-
     </div>
-  `;
+  </div>
+
+</div>
+`;
+} // <--- Added missing closing brace here
 
 // Listen for DP result from response_interceptor.js
 // It sends a message when /analyze/response completes
@@ -418,8 +417,8 @@ function updateDPPanel(dp) {
         ${icon} <strong>${dp.action}</strong>
         &nbsp;|&nbsp; Similarity: ${risk}%
         &nbsp;|&nbsp; Noised: ${noised}%
-        &nbsp;|&nbsp; Budget: ${budget.eps_spent || 0}/${budget.max_eps || 10} 
-          (${budget.percent_used ? budget.percent_used.toFixed(1) : 0}% used)
+        &nbsp;|&nbsp; Budget: ${budget.eps_remaining || 10}/${budget.max_eps || 10} 
+          (${100 - (budget.percent_used || 0)}% remaining)
       </div>
     </div>
   `;
@@ -467,11 +466,10 @@ function updateDPDisplay(response) {
         <div style="color:${action === "ALLOW" ? "#388e3c" : action === "WARN" ? "#f57c00" : "#d32f2f"};font-weight:bold;font-size:12px;">
           ${action === "ALLOW" ? "✅" : action === "WARN" ? "⚠️" : "🚨"} ${action}
           | Similarity: ${(risk * 100).toFixed(1)}%
-          | Budget: ${budget.eps_spent || 0}/${budget.max_eps || 10} 
-            (${budget.percent_used ? budget.percent_used.toFixed(1) : 0}% used)
+          | Budget: ${budget.eps_remaining || 10}/${budget.max_eps || 10} 
+            (${100 - (budget.percent_used || 0)}% remaining)
         </div>
       </div>
     `;
   }
-}
 }
